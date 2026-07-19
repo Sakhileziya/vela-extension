@@ -1,8 +1,17 @@
 /**
  * @file utils.js
  * @description Pure utility functions. No side effects. Fully testable.
+ * Each function does exactly one thing.
  */
 
+// ─── Text Processing ──────────────────────────────────────────────────────────
+
+/**
+ * Strips HTML tags and normalises whitespace from a raw HTML string.
+ * Used to clean page content before sending to the AI.
+ * @param {string} html - Raw HTML content
+ * @returns {string} Clean plain text
+ */
 export function stripHtml(html) {
   if (typeof html !== 'string') return '';
   return html
@@ -14,15 +23,22 @@ export function stripHtml(html) {
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
     .trim();
 }
 
+/**
+ * Truncates text to a maximum character length, preserving word boundaries.
+ * @param {string} text - Input text
+ * @param {number} maxLength - Maximum character count
+ * @returns {string} Truncated text with ellipsis if needed
+ */
 export function truncate(text, maxLength) {
   if (typeof text !== 'string') return '';
   if (text.length <= maxLength) return text;
-  const t = text.substring(0, maxLength);
-  const lastSpace = t.lastIndexOf(' ');
-  return (lastSpace > 0 ? t.substring(0, lastSpace) : t) + '…';
+  const truncated = text.substring(0, maxLength);
+  const lastSpace = truncated.lastIndexOf(' ');
+  return (lastSpace > 0 ? truncated.substring(0, lastSpace) : truncated) + '…';
 }
 
 export function formatRands(amount, decimals = 2) {
@@ -34,7 +50,10 @@ export function formatDateSA(date) {
   try {
     const d = new Date(date);
     if (isNaN(d.getTime())) return 'Invalid date';
-    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
   } catch { return 'Invalid date'; }
 }
 
@@ -111,5 +130,5 @@ export async function storageRemove(key) {
 
 export async function sendToBackground(message) {
   try { return await chrome.runtime.sendMessage(message); }
-  catch (error) { console.error('[Vela] sendToBackground failed:', error); throw error; }
+  catch (error) { console.error('[Infinity AI] sendToBackground failed:', error); throw error; }
 }
