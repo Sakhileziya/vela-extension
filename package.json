@@ -1,0 +1,28 @@
+{
+  "name": "vela-extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Vela — Africa's first AI browser companion. Built on Ollama. POPIA compliant.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint src --ext .js,.jsx --report-unused-disable-directives",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "eslint": "^9.0.0",
+    "vite": "^5.4.0",
+    "vite-plugin-web-extension": "^4.1.1"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
