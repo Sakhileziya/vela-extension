@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Vela — Africa's AI Browser Companion",
-  "short_name": "Vela",
+  "name": "Infinity Browser AI — Africa's AI Browser Companion",
+  "short_name": "Infinity AI",
   "version": "0.1.0",
   "description": "Africa's first AI browser companion. Built in Africa. POPIA compliant. Runs locally.",
   "permissions": [
@@ -36,7 +36,7 @@
     }
   ],
   "action": {
-    "default_title": "Open Vela",
+    "default_title": "Open Infinity AI",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
