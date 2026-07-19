@@ -1,8 +1,8 @@
 {
-  "name": "vela-extension",
+  "name": "infinity-browser-ai",
   "version": "0.1.0",
   "private": true,
-  "description": "Vela — Africa's first AI browser companion. Built on Ollama. POPIA compliant.",
+  "description": "Infinity Browser AI — Africa's first AI browser companion. Built on Ollama. POPIA compliant.",
   "type": "module",
   "scripts": {
     "dev": "vite build --watch",
