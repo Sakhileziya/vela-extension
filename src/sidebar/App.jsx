@@ -20,90 +20,44 @@ export default function App() {
   const [appState, setAppState] = useState('loading'); // 'loading' | 'popia' | 'ollama_down' | 'ready'
   const [ollamaStatus, setOllamaStatus] = useState(null);
 
-  // ── Initialisation ──────────────────────────────────────────────────────────
-
   useEffect(() => {
     initialise();
   }, []);
 
   const initialise = useCallback(async () => {
     try {
-      // Step 1: Check POPIA consent
       const popiStatus = await sendToBackground({ type: MSG.POPIA_GET_STATUS });
-      if (!popiStatus?.consented) {
-        setAppState('popia');
-        return;
-      }
-
-      // Step 2: Check Ollama health
+      if (!popiStatus?.consented) { setAppState('popia'); return; }
       const health = await sendToBackground({ type: MSG.OLLAMA_HEALTH });
       setOllamaStatus(health);
-
-      if (!health?.online || !health?.hasModel) {
-        setAppState('ollama_down');
-        return;
-      }
-
+      if (!health?.online || !health?.hasModel) { setAppState('ollama_down'); return; }
       setAppState('ready');
     } catch (error) {
-      console.error('[Vela] App initialisation failed:', error);
+      console.error('[Infinity AI] App initialisation failed:', error);
       setAppState('ollama_down');
     }
   }, []);
 
   const handlePopiAccept = useCallback(async () => {
     await sendToBackground({ type: MSG.POPIA_SET_CONSENT, consented: true });
-    initialise(); // Re-run checks now that consent is given
-  }, [initialise]);
-
-  const handleOllamaRetry = useCallback(() => {
-    setAppState('loading');
     initialise();
   }, [initialise]);
 
-  // ── Render ──────��───────────────────────────────────────────────────────────
+  const handleOllamaRetry = useCallback(() => { setAppState('loading'); initialise(); }, [initialise]);
 
-  if (appState === 'loading') {
-    return <LoadingScreen />;
-  }
-
-  if (appState === 'popia') {
-    return <OnboardingPOPIA onAccept={handlePopiAccept} />;
-  }
-
-  if (appState === 'ollama_down') {
-    return <OllamaGate status={ollamaStatus} onRetry={handleOllamaRetry} />;
-  }
-
+  if (appState === 'loading') return <LoadingScreen />;
+  if (appState === 'popia') return <OnboardingPOPIA onAccept={handlePopiAccept} />;
+  if (appState === 'ollama_down') return <OllamaGate status={ollamaStatus} onRetry={handleOllamaRetry} />;
   return <ChatInterface />;
 }
 
-// ─── Loading Screen ───────────────────────────────────────────────────────────
-
 function LoadingScreen() {
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      height: '100%',
-      gap: '12px',
-      background: 'var(--color-dark)',
-      color: 'white',
-    }}>
-      <div style={{ fontSize: '28px', fontFamily: 'var(--font-heading)', fontWeight: 700 }}>
-        Vela
-      </div>
-      <div style={{
-        width: '24px', height: '24px',
-        border: '2px solid rgba(255,255,255,0.2)',
-        borderTopColor: 'var(--color-primary)',
-        borderRadius: '50%',
-        animation: 'spin 0.8s linear infinite',
-      }} />
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '12px', background: 'var(--color-dark)', color: 'white' }}>
+      <div style={{ fontSize: '28px', fontFamily: 'var(--font-heading)', fontWeight: 700 }}>Infinity AI</div>
+      <div style={{ width: '24px', height: '24px', border: '2px solid rgba(255,255,255,0.2)', borderTopColor: 'var(--color-primary)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px' }}>Starting up…</p>
+      <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px' }}>Starting up&hUllip;</p>
     </div>
   );
 }
