@@ -1,6 +1,6 @@
 /**
  * @file vite.config.js
- * @description Vite build configuration for Vela Chrome Extension.
+ * @description Vite build configuration for Infinity Browser AI Chrome Extension.
  *
  * Uses vite-plugin-web-extension which:
  *   - Reads manifest.json and automatically bundles all referenced files
