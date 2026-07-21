@@ -41,6 +41,27 @@ export function truncate(text, maxLength) {
   return (lastSpace > 0 ? truncated.substring(0, lastSpace) : truncated) + '…';
 }
 
+/**
+ * Formats a timestamp into a human-readable time string.
+ * @param {number|Date} timestamp - Unix ms timestamp or Date
+ * @returns {string} Formatted time e.g. "14:32" or "01/07/2026"
+ */
+export function formatTimestamp(timestamp) {
+  try {
+    const d = new Date(timestamp);
+    if (isNaN(d.getTime())) return '';
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    if (isToday) {
+      return d.getHours().toString().padStart(2, '0') + ':' +
+        d.getMinutes().toString().padStart(2, '0');
+    }
+    return formatDateSA(d);
+  } catch {
+    return '';
+  }
+}
+
 export function formatRands(amount, decimals = 2) {
   if (typeof amount !== 'number' || isNaN(amount)) return 'R 0.00';
   return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(amount);
@@ -108,9 +129,9 @@ export async function withRetry(fn, maxAttempts = 3, baseDelayMs = 500) {
   throw lastError;
 }
 
-export function debounce(fn, ms) {
+export function debounce(fn,ms) {
   let timer;
-  return function (...args) { clearTimeout(timer); timer = setTimeout(() => fn.apply(this, args), ms); };
+  return function(...args) { clearTimeout(timer); timer = setTimeout(() => fn.apply(this, args), ms); };
 }
 
 export async function storageGet(key) {
