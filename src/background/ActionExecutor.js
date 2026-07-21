@@ -32,7 +32,7 @@ export class ActionExecutor {
         case ACTION.CLICK: return await this._click(tab.id, action.payload);
         case ACTION.TYPE: return await this._type(tab.id, action.payload);
         case ACTION.SCROLL: return await this._scroll(tab.id, action.payload);
-        case ACTION.EXTRACT8€Xeturn await this._extract(tab.id, action.payload);
+        case ACTION.EXTRACT: return await this._extract(tab.id, action.payload);
         case ACTION.NAVIGATE: return await this._navigate(tab.id, action.payload);
         case ACTION.SUBMIT_FORM: return await this._submitForm(tab.id, action.payload);
         case ACTION.HIGHLIGHT: return await this._highlight(tab.id, action.payload);

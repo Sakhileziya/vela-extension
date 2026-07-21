@@ -9,9 +9,19 @@ import { OLLAMA, ERRORS } from '../shared/constants.js';
 import { withTimeout } from '../shared/utils.js';
 
 export class OllamaClient {
-  constructor(baseUrl = OLLAMA.BASE_URL) {
+  constructor(baseUrl = OLLAMA.BASE_URL, options = {}) {
     this.baseUrl = baseUrl;
+    this.provider = options.provider || 'ollama';
+    this.model = options.model || OLLAMA.MODELS.CHAT;
+    this.embedModel = options.embedModel || OLLAMA.MODELS.EMBED;
     this._abortController = null;
+  }
+
+  setConfig(config = {}) {
+    if (config.baseUrl) this.baseUrl = config.baseUrl;
+    if (config.provider) this.provider = config.provider;
+    if (config.model) this.model = config.model;
+    if (config.embedModel) this.embedModel = config.embedModel;
   }
 
   async healthCheck() {
@@ -34,7 +44,7 @@ export class OllamaClient {
   async chat({ messages, model, onChunk, onDone, onError }) {
     this._abortController = new AbortController();
     const body = {
-      model: model || OLLAMA.MODELS.CHAT,
+      model: model || this.model,
       messages,
       stream: true,
       options: { temperature: OLLAMA.PARAMS.TEMPERATURE, num_predict: OLLAMA.PARAMS.MAX_TOKENS, top_p: OLLAMA.PARAMS.TOP_P },
@@ -88,7 +98,7 @@ export class OllamaClient {
       fetch(`${this.baseUrl}${OLLAMA.ENDPOINTS.EMBEDDINGS}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: OLLAMA.MODELS.EMBED, prompt: text.trim() }),
+        body: JSON.stringify({ model: this.embedModel, prompt: text.trim() }),
       }),
       OLLAMA.TIMEOUT_MS,
       ERRORS.OLLAMA_TIMEOUT
@@ -99,12 +109,25 @@ export class OllamaClient {
     return data.embedding;
   }
 
-  async generate(prompt, model) {
+  async generate(prompt, modelOrOptions = null) {
+    const options = typeof modelOrOptions === 'object' && modelOrOptions !== null && !Array.isArray(modelOrOptions)
+      ? modelOrOptions
+      : null;
+    const model = options?.model || (typeof modelOrOptions === 'string' ? modelOrOptions : OLLAMA.MODELS.CHAT);
     const response = await withTimeout(
       fetch(`${this.baseUrl}${OLLAMA.ENDPOINTS.GENERATE}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: model || OLLAMA.MODELS.CHAT, prompt, stream: false, options: { temperature: 0.1, num_predict: 512 } }),
+        body: JSON.stringify({
+          model: model || this.model,
+          prompt,
+          stream: false,
+          options: {
+            temperature: options?.temperature ?? 0.1,
+            num_predict: options?.num_predict ?? 512,
+            top_p: options?.top_p ?? 0.9,
+          },
+        }),
       }),
       OLLAMA.TIMEOUT_MS,
       ERRORS.OLLAMA_TIMEOUT

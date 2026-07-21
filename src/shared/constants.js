@@ -8,6 +8,7 @@
 // Optimised for 8GB RAM systems. llama3.2:3b uses ~2GB, leaving headroom.
 export const OLLAMA = Object.freeze({
   BASE_URL: 'http://localhost:11434',
+  BACKEND_URL: 'http://localhost:3000',
   ENDPOINTS: {
     CHAT: '/api/chat',
     GENERATE: '/api/generate',
@@ -32,6 +33,11 @@ export const OLLAMA = Object.freeze({
 });
 
 // ─── Memory Configuration ────────────────────────────────────────────────────
+export const MODEL_PROVIDERS = Object.freeze({
+  OLLAMA: 'ollama',
+  CLOUD: 'cloud',
+});
+
 export const MEMORY = Object.freeze({
   SHORT_TERM_LIMIT: 20,           // Max messages kept in Chrome local storage
   LONG_TERM_RETRIEVAL_LIMIT: 8,   // Top N memories injected per session
@@ -55,6 +61,14 @@ export const STORAGE_KEYS = Object.freeze({
 
 // ─── Extension Messaging Protocol ────────────────────────────────────────────
 // All inter-component communication uses these typed message names.
+export const DEFAULT_SETTINGS = Object.freeze({
+  provider: MODEL_PROVIDERS.OLLAMA,
+  backendUrl: OLLAMA.BASE_URL,
+  apiProvider: 'groq',
+  model: OLLAMA.MODELS.CHAT,
+  embedModel: OLLAMA.MODELS.EMBED,
+});
+
 export const MSG = Object.freeze({
   // content → background
   PAGE_CONTEXT: 'PAGE_CONTEXT',
@@ -62,6 +76,7 @@ export const MSG = Object.freeze({
   // sidebar → background
   CHAT_SEND: 'CHAT_SEND',
   CHAT_ABORT: 'CHAT_ABORT',
+  CHAT: 'CHAT_SEND',
   COMPANION_GET_ALL: 'COMPANION_GET_ALL',
   COMPANION_SET_ACTIVE: 'COMPANION_SET_ACTIVE',
   COMPANION_CREATE: 'COMPANION_CREATE',
@@ -75,10 +90,14 @@ export const MSG = Object.freeze({
   OLLAMA_HEALTH: 'OLLAMA_HEALTH',
   SETTINGS_GET: 'SETTINGS_GET',
   SETTINGS_SET: 'SETTINGS_SET',
+  GET_COMPANIONS: 'COMPANION_GET_ALL',
+  GET_HISTORY: 'MEMORY_GET',
+  CLEAR_HISTORY: 'MEMORY_CLEAR',
 
   // background → sidebar (streaming)
   STREAM_CHUNK: 'STREAM_CHUNK',
   STREAM_DONE: 'STREAM_DONE',
+  STREAM_END: 'STREAM_DONE',
   STREAM_ERROR: 'STREAM_ERROR',
 
   // Research Agent (sidebar → background)
@@ -220,6 +239,29 @@ export const ERRORS = Object.freeze({
 });
 
 // ─── POPIA Compliance ─────────────────────────────────────────────────────────
+export const POPIA_CONFIG = Object.freeze({
+  INFORMATION_OFFICER_EMAIL: 'privacy@infinityai.africa',
+  COMPANY_NAME: 'Infinity AI (Pty) Ltd',
+  REGULATOR: 'Information Regulator (South Africa)',
+  REGULATOR_URL: 'https://inforegulator.org.za',
+  DATA_PURPOSE: 'To provide AI-powered browser assistance and remember your preferences across sessions',
+  RETENTION_DAYS: 365,
+  USER_RIGHTS: [
+    'Access your personal information',
+    'Correct inaccurate information',
+    'Delete your information',
+    'Object to processing',
+    'Lodge a complaint with the Information Regulator',
+  ],
+  DATA_CATEGORIES: [
+    'Browser context (page content you are viewing)',
+    'Conversation history',
+    'Preferences and companion configurations',
+    'Usage patterns (anonymised)',
+  ],
+  LOCAL_PROCESSING_NOTE: 'All AI processing happens locally on your device via Ollama. No data is sent to external AI servers.',
+});
+
 export const POPIA = Object.freeze({
   INFORMATION_OFFICER_EMAIL: 'privacy@infinityai.africa',
   COMPANY_NAME: 'Infinity AI (Pty) Ltd',

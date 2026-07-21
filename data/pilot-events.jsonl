@@ -1,0 +1,5 @@
+{"type":"test:event","payload":{"note":"storage test"},"createdAt":"2026-07-21T01:43:31.791Z"}
+{"type":"test:event","payload":{"note":"storage test"},"createdAt":"2026-07-21T02:02:30.273Z"}
+{"type":"test:event","payload":{"note":"storage test"},"createdAt":"2026-07-21T02:07:19.208Z"}
+{"type":"test:event","payload":{"note":"storage test"},"createdAt":"2026-07-21T02:11:51.766Z"}
+{"type":"launch-check","payload":{"status":"ok"},"createdAt":"2026-07-21T02:14:32.338Z"}

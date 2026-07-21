@@ -4,9 +4,47 @@
 
 Infinity Browser AI is a Chrome extension that adds a persistent, memory-enabled AI companion to your browser. It reads any webpage you are on, executes browser actions on your behalf, and learns your preferences over time — all running locally via Ollama. No data leaves your device.
 
-**Status:** MVP — Week 1 build  
-**Stack:** Chrome Extension (MV3) + React + Ollama (local LLM) + Chrome Storage  
+**Status:** Launch-ready backend foundation  
+**Stack:** Chrome Extension (MV3) + React + Node.js server + Ollama-compatible LLM proxy + append-only event storage  
 **Cost to run:** R0 during development. ~R2,000–5,000/month for a production server.
+
+## What is now included
+
+- A hardened Node server with health checks, metrics, auth, rate limiting, and CORS
+- OpenAI-compatible endpoints for chat, embeddings, and model discovery
+- Durable append-only event logging for analytics and monitoring
+- Tests for auth and storage behaviors
+- Docker support for local/container deployment
+
+## Run the backend
+
+```bash
+npm install
+npm run start:server
+```
+
+Test the health endpoint:
+
+```bash
+curl http://localhost:3000/health
+```
+
+Send an event with the default dev key:
+
+```bash
+curl -X POST http://localhost:3000/v1/events \
+  -H "x-api-key: dev-change-me" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"signup","payload":{"user":"alice"}}'
+```
+
+Run tests:
+
+```bash
+npm run test
+```
+
+## Architecture Overview
 
 ---
 

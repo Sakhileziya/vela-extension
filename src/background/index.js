@@ -19,8 +19,8 @@ import { CompanionManager } from './CompanionManager.js';
 import { BrowseAgent } from './BrowseAgent.js';
 import { ComputerAgent } from './ComputerAgent.js';
 import { WorkflowEngine } from './WorkflowEngine.js';
-import { MSG, OLLAMA, STORAGE_KEYS } from '../shared/constants.js';
-import { storageSet } from '../shared/utils.js';
+import { DEFAULT_SETTINGS, MSG, OLLAMA, STORAGE_KEYS } from '../shared/constants.js';
+import { storageGet, storageSet } from '../shared/utils.js';
 
 // ─── Service Initialisation ───────────────────────────────────────────────────
 // Single instances — services are stateless and safe to reuse across messages.
@@ -58,7 +58,26 @@ chrome.action.onClicked.addListener((tab) => {
 
 // ─── Periodic Health Check ────────────────────────────────────────────────────
 
+async function loadSettings() {
+  const stored = await storageGet(STORAGE_KEYS.SETTINGS);
+  const settings = { ...DEFAULT_SETTINGS, ...(stored || {}) };
+  ollama.setConfig({
+    baseUrl: settings.backendUrl || OLLAMA.BASE_URL,
+    provider: settings.provider,
+    model: settings.model,
+    embedModel: settings.embedModel,
+  });
+  return settings;
+}
+
 async function checkOllamaHealth() {
+  const settings = await loadSettings();
+  ollama.setConfig({
+    baseUrl: settings.backendUrl || OLLAMA.BASE_URL,
+    provider: settings.provider,
+    model: settings.model,
+    embedModel: settings.embedModel,
+  });
   const status = await ollama.healthCheck();
   await storageSet(STORAGE_KEYS.OLLAMA_STATUS, {
     ...status,
@@ -154,13 +173,15 @@ async function handleMessage(message, sender, sendResponse) {
 
       // ── Memory ──
       case MSG.MEMORY_GET: {
-        const history = await memory.getShortTerm(message.companionId);
-        sendResponse({ history });
+        const companionId = message.companionId || (await companions.getActive())?.id;
+        const history = await memory.getShortTerm(companionId);
+        sendResponse({ history, messages: history });
         break;
       }
 
       case MSG.MEMORY_CLEAR: {
-        await memory.clearShortTerm(message.companionId);
+        const companionId = message.companionId || (await companions.getActive())?.id;
+        await memory.clearShortTerm(companionId);
         sendResponse({ ok: true });
         break;
       }
@@ -192,7 +213,26 @@ async function handleMessage(message, sender, sendResponse) {
         break;
       }
 
-      // ── Ollama health ──
+      // ── Settings and health ──
+      case MSG.SETTINGS_GET: {
+        const settings = await loadSettings();
+        sendResponse({ settings });
+        break;
+      }
+
+      case MSG.SETTINGS_SET: {
+        const merged = { ...DEFAULT_SETTINGS, ...(await storageGet(STORAGE_KEYS.SETTINGS) || {}), ...(message.settings || {}) };
+        await storageSet(STORAGE_KEYS.SETTINGS, merged);
+        ollama.setConfig({
+          baseUrl: merged.backendUrl || OLLAMA.BASE_URL,
+          provider: merged.provider,
+          model: merged.model,
+          embedModel: merged.embedModel,
+        });
+        sendResponse({ settings: merged });
+        break;
+      }
+
       case MSG.OLLAMA_HEALTH: {
         const status = await checkOllamaHealth();
         sendResponse(status);
@@ -320,19 +360,34 @@ async function handleMessage(message, sender, sendResponse) {
  * @param {Function} sendResponse
  */
 async function handleChatSend(message, sendResponse) {
-  const { companionId, userMessage } = message;
+  const { companionId, userMessage, message: fallbackMessage } = message;
+  const text = (userMessage || fallbackMessage || '').trim();
 
-  if (!companionId || !userMessage?.trim()) {
-    sendResponse({ error: 'companionId and userMessage are required' });
+  if (!text) {
+    sendResponse({ error: 'userMessage is required' });
+    return;
+  }
+
+  const resolvedCompanionId = companionId || (await companions.getActive())?.id;
+  if (!resolvedCompanionId) {
+    sendResponse({ error: 'No active companion available' });
     return;
   }
 
   // 1. Load companion config
-  const companion = await companions.getById(companionId);
+  const companion = await companions.getById(resolvedCompanionId);
   if (!companion) {
-    sendResponse({ error: `Companion not found: ${companionId}` });
+    sendResponse({ error: `Companion not found: ${resolvedCompanionId}` });
     return;
   }
+
+  const settings = await loadSettings();
+  ollama.setConfig({
+    baseUrl: settings.backendUrl || OLLAMA.BASE_URL,
+    provider: settings.provider,
+    model: settings.model,
+    embedModel: settings.embedModel,
+  });
 
   // 2. Get current page context
   const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -343,8 +398,8 @@ async function handleChatSend(message, sendResponse) {
 
   // 3. Retrieve relevant long-term memories
   const relevantMemories = await memory.retrieveRelevant(
-    companionId,
-    userMessage + ' ' + (pageContext?.title || '')
+    resolvedCompanionId,
+    text + ' ' + (pageContext?.title || '')
   );
   const memoryContext = MemoryManager.formatMemoryContext(relevantMemories);
 
@@ -352,17 +407,17 @@ async function handleChatSend(message, sendResponse) {
   const systemPrompt = CompanionManager.buildSystemPrompt(companion, pageContextString, memoryContext);
 
   // 5. Load short-term history
-  const history = await memory.getShortTerm(companionId);
+  const history = await memory.getShortTerm(resolvedCompanionId);
 
   // 6. Build the messages array for Ollama
   const messages = [
     { role: 'system', content: systemPrompt },
     ...history.map(({ role, content }) => ({ role, content })),
-    { role: 'user', content: userMessage.trim() },
+    { role: 'user', content: text },
   ];
 
   // 7. Store the user message immediately
-  await memory.appendShortTerm(companionId, { role: 'user', content: userMessage.trim() });
+  await memory.appendShortTerm(resolvedCompanionId, { role: 'user', content: text });
 
   // 8. Stream response to sidebar via runtime.sendMessage
   let fullResponse = '';
@@ -373,7 +428,7 @@ async function handleChatSend(message, sendResponse) {
     onChunk: (token) => {
       fullResponse += token;
       // Send each token to sidebar — sidebar listens for STREAM_CHUNK messages
-      chrome.runtime.sendMessage({ type: MSG.STREAM_CHUNK, token }).catch(() => {});
+      chrome.runtime.sendMessage({ type: MSG.STREAM_CHUNK, chunk: token }).catch(() => {});
 
       // Acknowledge the original sendResponse on first chunk
       if (!responded) {
@@ -385,10 +440,10 @@ async function handleChatSend(message, sendResponse) {
       chrome.runtime.sendMessage({ type: MSG.STREAM_DONE }).catch(() => {});
 
       // Store the complete assistant response in memory
-      await memory.appendShortTerm(companionId, { role: 'assistant', content: text });
+      await memory.appendShortTerm(resolvedCompanionId, { role: 'assistant', content: text });
 
       // Extract and store long-term facts (fire and forget)
-      memory.extractAndStore(companionId, userMessage, text).catch(() => {});
+      memory.extractAndStore(resolvedCompanionId, text, text).catch(() => {});
     },
     onError: (error) => {
       chrome.runtime.sendMessage({

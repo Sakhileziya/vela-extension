@@ -1,241 +1,180 @@
 /**
  * @file ComputerAgent.js
- * @description Full browser automation via the Chrome Debugger Protocol (CDP).
- * Enables the AI to click, type, navigate, screenshot, and extract structured
- * data from any web page — exactly what Chrome DevTools does internally.
- *
- * Usage: attach to a tab → send CDP commands → detach when done.
- * Always call detachAll() when finished to release the debugger lock.
+ * @description Full browser control via Chrome Debugger Protocol.
+ * Enables click, type, scroll, screenshot, navigate on any tab.
  */
 
-const SLEEP_BETWEEN_KEYSTROKES_MS = 25;
-const PAGE_LOAD_TIMEOUT_MS = 12_000;
-
 export class ComputerAgent {
-  constructor() {
-    /** @type {Set<number>} tabIds currently attached */
-    this._attached = new Set();
+  constructor(ollamaClient) {
+    this.ollama = ollamaClient;
   }
 
-  // ── Lifecycle ────────────────────────────────────────────────────────────────
-
-  async attach(tabId) {
-    if (this._attached.has(tabId)) return;
-    await new Promise((resolve, reject) => {
-      chrome.debugger.attach({ tabId }, '1.3', () => {
-        if (chrome.runtime.lastError) {
-          reject(new Error(`attach failed: ${chrome.runtime.lastError.message}`));
-        } else {
-          this._attached.add(tabId);
-          resolve();
-        }
-      });
-    });
+  async navigateTo(tabId, url) {
+    return this._navigate(tabId, url);
   }
 
-  async detach(tabId) {
-    if (!this._attached.has(tabId)) return;
-    await new Promise((resolve) => {
-      chrome.debugger.detach({ tabId }, () => {
-        this._attached.delete(tabId);
-        resolve();
-      });
-    });
+  async click(tabId, selector) {
+    return this._click(tabId, selector);
+  }
+
+  async type(tabId, selector, text) {
+    return this._type(tabId, selector, text);
+  }
+
+  async extractPage(tabId) {
+    return this._extract(tabId);
+  }
+
+  async screenshot(tabId) {
+    return this._screenshot(tabId);
+  }
+
+  async scroll(tabId, direction, amount) {
+    return this._scroll(tabId, direction, amount);
+  }
+
+  async pressKey(tabId, key) {
+    return this._pressKey(tabId, key);
   }
 
   async detachAll() {
-    for (const tabId of [...this._attached]) {
-      await this.detach(tabId).catch(() => {});
+    return true;
+  }
+
+  async execute(tabId, instruction) {
+    const steps = await this._plan(instruction);
+    const results = [];
+    for (const step of steps) {
+      try {
+        const result = await this._runStep(tabId, step);
+        results.push({ step, result, status: 'done' });
+      } catch (err) {
+        results.push({ step, error: err.message, status: 'error' });
+        break;
+      }
+    }
+    return results;
+  }
+
+  async _plan(instruction) {
+    const prompt = `You are a browser automation planner.
+Convert this instruction into a JSON array of steps.
+Each step: { "action": "click|type|scroll|navigate|screenshot|extract|wait", "selector": "css (if needed)", "value": "text or url (if needed)", "description": "what this does" }
+Instruction: ${instruction}
+Return ONLY valid JSON array, no explanation.`;
+
+    const response = await this.ollama.generate(prompt, { temperature: 0.1 });
+    try {
+      const match = response.match(/\[[\s\S]*\]/);
+      return match ? JSON.parse(match[0]) : [];
+    } catch {
+      return [];
     }
   }
 
-  // ── Core CDP Command ─────────────────────────────────────────────────────────
+  async _runStep(tabId, step) {
+    switch (step.action) {
+      case 'navigate':
+        return await this._navigate(tabId, step.value);
+      case 'click':
+        return await this._click(tabId, step.selector);
+      case 'type':
+        return await this._type(tabId, step.selector, step.value);
+      case 'scroll':
+        return await this._scroll(tabId, step.value || 'down');
+      case 'screenshot':
+        return await this._screenshot(tabId);
+      case 'extract':
+        return await this._extract(tabId);
+      case 'wait':
+        return await this._wait(parseInt(step.value) || 1000);
+      default:
+        return `Unknown action: ${step.action}`;
+    }
+  }
 
-  async cmd(tabId, method, params = {}) {
-    await this.attach(tabId);
-    return new Promise((resolve, reject) => {
-      chrome.debugger.sendCommand({ tabId }, method, params, (result) => {
-        if (chrome.runtime.lastError) {
-          reject(new Error(`${method} failed: ${chrome.runtime.lastError.message}`));
-        } else {
-          resolve(result);
+  async _navigate(tabId, url) {
+    await chrome.tabs.update(tabId, { url });
+    await new Promise((resolve) => {
+      chrome.tabs.onUpdated.addListener(function listener(id, info) {
+        if (id === tabId && info.status === 'complete') {
+          chrome.tabs.onUpdated.removeListener(listener);
+          resolve();
         }
       });
     });
+    return `Navigated to ${url}`;
   }
 
-  // ── Navigation ───────────────────────────────────────────────────────────────
-
-  /**
-   * Navigate the active tab to a URL and wait for the page to fully load.
-   */
-  async navigateTo(tabId, url) {
-    await this.cmd(tabId, 'Page.navigate', { url });
-    await this._waitForLoad(tabId);
-    return { success: true, url };
-  }
-
-  // ── Interaction ──────────────────────────────────────────────────────────────
-
-  /**
-   * Click an element identified by a CSS selector.
-   */
-  async click(tabId, selector) {
-    const result = await this.cmd(tabId, 'Runtime.evaluate', {
-      expression: `
-        (function() {
-          const el = document.querySelector(${JSON.stringify(selector)});
-          if (!el) return { success: false, error: 'Not found: ' + ${JSON.stringify(selector)} };
-          el.scrollIntoView({ behavior: 'instant', block: 'center' });
-          el.focus();
-          el.click();
-          return { success: true, tag: el.tagName, id: el.id || null };
-        })()
-      `,
-      returnByValue: true,
-      awaitPromise: false,
+  async _click(tabId, selector) {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (sel) => {
+        const el = document.querySelector(sel);
+        if (!el) throw new Error(`Element not found: ${sel}`);
+        el.click();
+      },
+      args: [selector],
     });
-    return result?.result?.value ?? { success: false };
+    return `Clicked ${selector}`;
   }
 
-  /**
-   * Type text into an input field identified by a CSS selector.
-   * Clears the field first, then simulates real keystrokes.
-   */
-  async type(tabId, selector, text) {
-    // Clear and focus
-    await this.cmd(tabId, 'Runtime.evaluate', {
-      expression: `
-        (function() {
-          const el = document.querySelector(${JSON.stringify(selector)});
-          if (!el) return;
-          el.focus();
-          el.value = '';
-          el.dispatchEvent(new Event('input', { bubbles: true }));
-          el.dispatchEvent(new Event('change', { bubbles: true }));
-        })()
-      `,
+  async _type(tabId, selector, text) {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (sel, val) => {
+        const el = document.querySelector(sel);
+        if (!el) throw new Error(`Element not found: ${sel}`);
+        el.focus();
+        el.value = val;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      },
+      args: [selector, text],
     });
-
-    await this._sleep(200);
-
-    // Type character by character (realistic simulation)
-    for (const char of String(text)) {
-      await this.cmd(tabId, 'Input.dispatchKeyEvent', { type: 'char', text: char });
-      await this._sleep(SLEEP_BETWEEN_KEYSTROKES_MS);
-    }
-
-    return { success: true, typed: text };
+    return `Typed "${text}" into ${selector}`;
   }
 
-  /**
-   * Press a named key (e.g. "Enter", "Tab", "Escape").
-   */
-  async pressKey(tabId, key) {
-    await this.cmd(tabId, 'Input.dispatchKeyEvent', { type: 'keyDown', key });
-    await this._sleep(50);
-    await this.cmd(tabId, 'Input.dispatchKeyEvent', { type: 'keyUp', key });
-    return { success: true, key };
-  }
-
-  /**
-   * Scroll the page.
-   * @param {number} tabId
-   * @param {'up'|'down'|'top'|'bottom'} direction
-   * @param {number} amount - pixels to scroll (ignored for top/bottom)
-   */
-  async scroll(tabId, direction = 'down', amount = 600) {
-    const expr = {
-      down: `window.scrollBy(0, ${amount})`,
-      up: `window.scrollBy(0, -${amount})`,
-      top: `window.scrollTo(0, 0)`,
-      bottom: `window.scrollTo(0, document.body.scrollHeight)`,
-    }[direction] || fwindow.scrollBy(0, ${amount})`;
-
-    await this.cmd(tabId, 'Runtime.evaluate', { expression: expr });
-    return { success: true, direction };
-  }
-
-  // ── Data Extraction ──────────────────────────────────────────────────────────
-
-  /**
-   * Extract structured page data: title, URL, headings, links, text, forms.
-   */
-  async extractPage(tabId) {
-    const result = await this.cmd(tabId, 'Runtime.evaluate', {
-      expression: `
-        (function() {
-          return JSON.stringify({
-            title: document.title,
-            url: location.href,
-            headings: Array.from(document.querySelectorAll('h1,h2,h3')).slice(0, 15)
-              .map(h => h.innerText.trim()).filter(Boolean),
-            links: Array.from(document.querySelectorAll('a[href]')).slice(0, 30)
-              .map(a => ({ text: a.innerText.trim().substring(0, 80), href: a.href }))
-              .filter(l => l.text),
-            bodyText: (document.body?.innerText || '').replace(/\\s+/g, ' ').substring(0, 4000),
-            forms: Array.from(document.querySelectorAll('form')).map(f => ({
-              action: f.action,
-              fields: Array.from(f.querySelectorAll('input,select,textarea')).map(i => ({
-                tag: i.tagName, type: i.type, name: i.name, id: i.id,
-                placeholder: i.placeholder, value: i.value
-              }))
-            })),
-            buttons: Array.from(document.querySelectorAll('button,[role="button"]')).slice(0, 20)
-              .map(b => ({ text: b.innerText.trim(), id: b.id, cls: b.className.substring(0, 60) }))
-          });
-        })()
-      `,
-      returnByValue: true,
+  async _scroll(tabId, direction, amount = 400) {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (dir, amt) => {
+        const map = { down: [0, amt], up: [0, -amt], top: [0, -99999], bottom: [0, 99999] };
+        const [x, y] = map[dir] || [0, amt];
+        window.scrollBy(x, y);
+      },
+      args: [direction, amount],
     });
-    const raw = result?.result?.value;
-    return raw ? JSON.parse(raw) : null;
+    return `Scrolled ${direction}`;
   }
 
-  /**
-   * Take a JPEG screenshot of the current tab viewport.
-   * @returns {string|null} base64 data URI
-   */
-  async screenshot(tabId) {
-    const result = await this.cmd(tabId, 'Page.captureScreenshot', {
-      format: 'jpeg',
-      quality: 55,
+  async _pressKey(tabId, key) {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (value) => {
+        const event = new KeyboardEvent('keydown', { key: value, bubbles: true, cancelable: true });
+        document.dispatchEvent(event);
+      },
+      args: [key],
     });
-    return result?.data ? `data:image/jpeg;base64,${result.data}` : null;
+    return `Pressed ${key}`;
   }
 
-  /**
-   * Evaluate arbitrary JavaScript in the tab context.
-   * Use sparingly — prefer the typed methods above.
-   */
-  async evaluate(tabId, expression) {
-    const result = await this.cmd(tabId, 'Runtime.evaluate', {
-      expression,
-      returnByValue: true,
-      awaitPromise: true,
+  async _screenshot(tabId) {
+    const dataUrl = await chrome.tabs.captureVisibleTab(null, { format: 'jpeg', quality: 70 });
+    return dataUrl;
+  }
+
+  async _extract(tabId) {
+    const [{ result }] = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => document.body.innerText.slice(0, 8000),
     });
-    return result?.result?.value ?? null;
+    return result;
   }
 
-  // ── Helpers ──────────────────────────────────────────────────────────────────
-
-  _sleep(ms) {
-    return new Promise((r) => setTimeout(r, ms));
-  }
-
-  async _waitForLoad(tabId) {
-    return new Promise((resolve) => {
-      const timeout = setTimeout(resolve, PAGE_LOAD_TIMEOUT_MS);
-
-      const listener = (updatedTabId, changeInfo) => {
-        if (updatedTabId === tabId && changeInfo.status === 'complete') {
-          chrome.tabs.onUpdated.removeListener(listener);
-          clearTimeout(timeout);
-          resolve();
-        }
-      };
-
-      chrome.tabs.onUpdated.addListener(listener);
-    });
+  async _wait(ms) {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+    return `Waited ${ms}ms`;
   }
 }

@@ -57,6 +57,19 @@ export function formatDateSA(date) {
   } catch { return 'Invalid date'; }
 }
 
+export function formatTimestamp(value) {
+  if (!value) return '';
+  try {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString('en-ZA', {
+      day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
+  } catch {
+    return '';
+  }
+}
+
 export function deepClone(obj) {
   return JSON.parse(JSON.stringify(obj));
 }

@@ -8,7 +8,7 @@
 const MAX_CONTENT_LENGTH = 8000;
 const MAX_LINKS = 30;
 const MAX_FORM_FIELDS = 20;
-const DE@ÔUNCE_MS = 1500;
+const DEBOUNCE_MS = 1500;
 
 function extractPageContext() {
   const selectors = ['article', 'main', '[role="main"]', '.content', '#content', 'body'];

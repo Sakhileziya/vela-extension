@@ -1,0 +1,27 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: vela
+      POSTGRES_USER: vela
+      POSTGRES_PASSWORD: vela-pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-dev-change-me}
+      DATABASE_URL: postgresql://vela:vela-pass@db:5432/vela
+    depends_on:
+      - db
+    volumes:
+      - ./:/app:cached
+
+volumes:
+  postgres_data:

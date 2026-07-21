@@ -15,15 +15,17 @@ import { OllamaGate } from './components/OllamaGate.jsx';
 import { ChatInterface } from './components/ChatInterface.jsx';
 import { ResearchPanel } from './components/ResearchPanel.jsx';
 import { AgentBuilder } from './components/AgentBuilder.jsx';
-import { MSG, BRAND } from '../shared/constants.js';
+import { SettingsPanel } from './components/SettingsPanel.jsx';
+import { DEFAULT_SETTINGS, MSG, BRAND } from '../shared/constants.js';
 import { sendToBackground } from '../shared/utils.js';
 
 // ── Tab definitions ────────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: 'chat',     label: 'Chat',    icon: '💬' },
+  { id: 'chat',     label: 'Chat',     icon: '💬' },
   { id: 'research', label: 'Research', icon: '🔍' },
   { id: 'agents',   label: 'Agents',   icon: '⚡' },
+  { id: 'settings', label: 'Settings', icon: '⚙️' },
 ];
 
 // ── Root component ───��────────────────────────────────────────────────────────
@@ -32,6 +34,7 @@ export default function App() {
   const [appState, setAppState] = useState('loading'); // 'loading'|'popia'|'ollama_down'|'ready'
   const [ollamaStatus, setOllamaStatus] = useState(null);
   const [activeTab, setActiveTab] = useState('chat');
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
 
   useEffect(() => { initialise(); }, []);
 
@@ -39,6 +42,11 @@ export default function App() {
     try {
       const popiStatus = await sendToBackground({ type: MSG.POPIA_GET_STATUS });
       if (!popiStatus?.consented) { setAppState('popia'); return; }
+
+      const settingsResult = await sendToBackground({ type: MSG.SETTINGS_GET });
+      if (settingsResult?.settings) {
+        setSettings(settingsResult.settings);
+      }
 
       const health = await sendToBackground({ type: MSG.OLLAMA_HEALTH });
       setOllamaStatus(health);
@@ -62,6 +70,13 @@ export default function App() {
     initialise();
   }, [initialise]);
 
+  const handleSettingsSave = useCallback(async (nextSettings) => {
+    const result = await sendToBackground({ type: MSG.SETTINGS_SET, settings: nextSettings });
+    if (result?.settings) {
+      setSettings(result.settings);
+    }
+  }, []);
+
   // ── Gate screens ──────────────────────────────────────────────────────────
 
   if (appState === 'loading') return <LoadingScreen />;
@@ -82,6 +97,9 @@ export default function App() {
         </div>
         <div style={{ ...styles.panel, display: activeTab === 'agents'   ? 'flex' : 'none' }}>
           <AgentBuilder />
+        </div>
+        <div style={{ ...styles.panel, display: activeTab === 'settings' ? 'flex' : 'none' }}>
+          <SettingsPanel settings={settings} onSave={handleSettingsSave} />
         </div>
       </div>
 

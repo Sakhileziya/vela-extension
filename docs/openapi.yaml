@@ -1,0 +1,49 @@
+openapi: 3.0.3
+info:
+  title: Infinity Browser AI API
+  version: 1.0.0
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Server is healthy
+  /v1/events:
+    get:
+      summary: Read stored events
+      parameters:
+        - in: header
+          name: x-api-key
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Events list
+    post:
+      summary: Ingest an event
+      parameters:
+        - in: header
+          name: x-api-key
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Event recorded
+  /v1/chat/completions:
+    post:
+      summary: Chat completion endpoint
+      parameters:
+        - in: header
+          name: x-api-key
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Completion response

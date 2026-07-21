@@ -9,17 +9,20 @@ import React from 'react';
 export function OllamaGate({ status, onRetry }) {
   const isOffline = !status?.online;
   const modelMissing = status?.online && !status?.hasModel;
+  const isCloud = status?.provider && status.provider !== 'ollama';
 
   return (
     <div style={styles.container}>
       <div style={styles.icon}>{isOffline ? '⚠️' : '📦'}</div>
       <h2 style={styles.title}>
-        {isOffline ? 'Ollama Not Running' : 'Model Not Found'}
+        {isCloud ? 'Inference Backend Unavailable' : isOffline ? 'Ollama Not Running' : 'Model Not Found'}
       </h2>
       <p style={styles.desc}>
-        {isOffline
-          ? 'Infinity Browser AI uses Ollama to run AI locally on your device. Ollama is not running right now.'
-          : 'Ollama is running but the required model is not installed.'}
+        {isCloud
+          ? 'The hosted inference backend is not reachable yet. Check your server and provider credentials.'
+          : isOffline
+            ? 'Infinity Browser AI uses Ollama to run AI locally on your device. Ollama is not running right now.'
+            : 'Ollama is running but the required model is not installed.'}
       </p>
       <div style={styles.steps}>
         {isOffline && (
@@ -34,7 +37,7 @@ export function OllamaGate({ status, onRetry }) {
             </Step>
           </>
         )}
-        {(Z] || modelMissing) && (
+        {(isOffline || modelMissing) && (
           <Step number={isOffline ? 3 : 1} title="Pull the required model (8GB RAM optimised):">
             <Code>ollama pull llama3.2:3b</Code>
             <Code>ollama pull nomic-embed-text</Code>
